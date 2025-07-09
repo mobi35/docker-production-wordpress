@@ -45,7 +45,12 @@ services:
         max-size: "10m"
         max-file: "3"
     restart: always
-    build: ./
+    user: "${UID:-1000}:${GID:-1000}"
+    build:
+      context: ./
+      args:
+        - UID=${UID:-1000}
+        - GID=${GID:-1000}
     volumes:
       - ./wp-content:/var/www/wp-content
       - ./images:/usr/src/wordpress/images

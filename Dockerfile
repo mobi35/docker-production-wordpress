@@ -20,13 +20,11 @@ LABEL Maintainer="Carlos R <nidr0x@gmail.com>" \
 ENV WP_VERSION=6.8.1
 ENV WP_LOCALE=en_US
 
-# Make these build arguments without defaults
 ARG UID
 ARG GID
 
 RUN adduser -u $UID -D -S -G www-data www-data \
   && apk add --no-cache \
-  shadow \
   php84 \
   php84-fpm \
   php84-mysqli \
@@ -52,10 +50,6 @@ RUN adduser -u $UID -D -S -G www-data www-data \
   php84-iconv \
   less
 
-# Add permission fixing script
-COPY fix-permissions.sh /usr/local/bin/fix-permissions
-RUN chmod +x /usr/local/bin/fix-permissions
-
 RUN { \
   echo 'opcache.memory_consumption=128'; \
   echo 'opcache.interned_strings_buffer=8'; \
@@ -64,12 +58,14 @@ RUN { \
   echo 'opcache.fast_shutdown=1'; \
   } > /etc/php84/conf.d/opcache-recommended.ini
 
-VOLUME /var/www/wp-content
-
 WORKDIR /usr/src
 
 RUN set -x \
   && mkdir -p /usr/src/wordpress \
+  && mkdir -p /var/www/wp-content \
+  && chown -R $UID:$GID /usr/src/wordpress \
+  && chown -R $UID:$GID /var/www/wp-content \
+  && chmod -R 775 /var/www/wp-content \
   && sed -i s/';cgi.fix_pathinfo=1/cgi.fix_pathinfo=0'/g /etc/php84/php.ini \
   && sed -i s/'expose_php = On/expose_php = Off'/g /etc/php84/php.ini \
   && ln -s /usr/sbin/php-fpm84 /usr/sbin/php-fpm \
@@ -80,23 +76,21 @@ COPY config/fpm-pool.conf /etc/php84/php-fpm.d/zzz_custom_fpm_pool.conf
 COPY config/php.ini /etc/php84/conf.d/zzz_custom_php.ini
 COPY config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY config/nginx_includes/* /etc/nginx/includes/
+COPY --chown=$UID:$GID wp-config.php /usr/src/wordpress
 COPY rootfs.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/rootfs.sh
-COPY --from=download /tmp/wp /usr/local/bin/wp
-COPY --from=download /tmp/wp-secrets.php /usr/src/wordpress/wp-secrets.php
+COPY --from=download --chown=$UID:$GID /tmp/wp /usr/local/bin/wp
+COPY --from=download --chown=$UID:$GID /tmp/wp-secrets.php /usr/src/wordpress/wp-secrets.php
 
-# Create a new fix-permissions.sh script
-RUN echo '#!/bin/sh\n\
-chown -R $UID:$GID /usr/src/wordpress\n\
-chown -R $UID:$GID /var/www/wp-content\n\
-chown -R $UID:$GID /etc/nginx\n\
-chown -R $UID:$GID /var/lib/nginx\n\
-chmod -R 775 /var/www/wp-content\n\
-chmod -R g+w /etc/nginx\n\
-chmod g+wx /var/log/\n\
-chmod 660 /usr/src/wordpress/wp-config.php\n\
-' > /usr/local/bin/fix-permissions && \
-chmod +x /usr/local/bin/fix-permissions
+RUN chown -R $UID:$GID /etc/nginx \
+  && chown -R $UID:$GID /var/lib/nginx \
+  && chmod -R g+w /etc/nginx \
+  && chmod g+wx /var/log/ \
+  && deluser nginx \
+  && rm -rf /tmp/* \
+  && chmod 660 /usr/src/wordpress/wp-config.php \
+  && sed -i '1s/^/<?php \n/' /usr/src/wordpress/wp-secrets.php \
+  && rm -rf /var/www/localhost
 
 USER ${UID}
 
@@ -109,4 +103,4 @@ EXPOSE 8080
 
 STOPSIGNAL SIGQUIT
 
-CMD ["sh", "-c", "fix-permissions && supervisord -c /etc/supervisor/conf.d/supervisord.conf"]
+CMD ["supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
