@@ -40,6 +40,7 @@ services:
     container_name: eris
     env_file:
       - .env
+    user: "${UID:-1000}:${GID:-1000}"
     logging:
       options:
         max-size: "10m"
