@@ -26,7 +26,6 @@ services:
       - vol-wp-db:/var/lib/mysql
       - ./config/my.cnf:/etc/mysql/conf.d/zzz_my.cnf
       - /etc/localtime:/etc/localtime:ro
-      - /etc/timezone:/etc/timezone:ro
     networks:
       - backend
 
@@ -47,5 +46,4 @@ services:
       - ./wp-content:/var/www/wp-content
       - ./images:/usr/src/wordpress/images
       - /etc/localtime:/etc/localtime:ro
-      - /etc/timezone:/etc/timezone:ro
       - ./rootfs:/data
